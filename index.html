@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Покер-подсказка</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Покер">
+<meta name="theme-color" content="#0e1814">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>:root{padding-top:env(safe-area-inset-top,0px)}html,body{margin:0}</style>
+<style>
+/* Layout: one narrow column, card picker docked to the bottom for the thumb; single dark card-room look by choice */
+:root{
+  --bg:#0e1814; --surface:#16231d; --surface2:#1d2d26; --line:#2b3d34;
+  --fg:#edf2ee; --muted:#8fa398;
+  --chip:#e2b13c; --raise:#3cbf7c; --call:#e2b13c; --fold:#e0605a;
+  --card:#f7f4ec; --card-red:#c8302c; --card-black:#1a1a1a;
+  --f-display:-apple-system,system-ui,sans-serif;
+  --f-body:system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{background:var(--bg);color:var(--fg)}
+body{font-family:var(--f-body);font-size:15px;line-height:1.4;-webkit-tap-highlight-color:transparent}
+.wrap{max-width:520px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px 8px;display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+h1{font-family:var(--f-display);font-weight:800;font-size:18px;margin:0;letter-spacing:.01em}
+h1 span{color:var(--chip)}
+button{font:inherit;color:inherit;border:0;cursor:pointer;touch-action:manipulation}
+button:focus-visible{outline:2px solid var(--chip);outline-offset:2px}
+.reset{background:var(--surface2);border:1px solid var(--line);padding:9px 14px;border-radius:999px;font-weight:600;font-size:14px}
+.label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;margin-bottom:6px;display:flex;justify-content:space-between;gap:8px}
+.seg{display:grid;gap:6px}
+.seg.c4{grid-template-columns:repeat(4,1fr)}
+.seg.c3{grid-template-columns:repeat(3,1fr)}
+.seg button{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 4px;font-weight:600;font-size:13.5px;line-height:1.15}
+.seg button small{display:block;font-weight:400;font-size:11px;color:var(--muted);margin-top:2px}
+.seg button.on{background:var(--chip);color:#1b1404;border-color:var(--chip)}
+.seg button.on small{color:#4a3a10}
+.hint{font-size:13px;color:var(--muted);margin-top:6px;min-height:1.3em}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.stepper{display:flex;align-items:center;gap:6px}
+.stepper button{width:38px;height:38px;border-radius:10px;background:var(--surface);border:1px solid var(--line);font-size:20px;font-weight:600}
+.stepper output{min-width:28px;text-align:center;font-family:var(--f-display);font-weight:600;font-size:18px;font-variant-numeric:tabular-nums}
+.table{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap}
+.slots{display:flex;gap:6px}
+.slot{border-radius:9px;border:2px dashed var(--line);background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--f-display);font-weight:600;line-height:1;position:relative}
+.slot.hero{width:62px;height:86px;font-size:24px}
+.slot.board{width:46px;height:64px;font-size:17px}
+.slot.full{background:var(--card);border:2px solid var(--card);color:var(--card-black)}
+.slot.full.red{color:var(--card-red)}
+.slot .s{font-size:.95em;margin-top:4px;font-family:var(--f-body)}
+.slot.act{border-color:var(--chip);border-style:solid;box-shadow:0 0 0 3px rgba(226,177,60,.25)}
+.slot.full.act{border-color:var(--chip)}
+.grp .label{margin-bottom:6px}
+.street{font-size:10px;color:var(--muted);text-align:center;margin-top:4px;letter-spacing:.04em}
+/* result */
+.res{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.verdict{display:flex;align-items:center;gap:12px}
+.vbadge{font-family:var(--f-display);font-weight:800;font-size:22px;padding:8px 14px;border-radius:10px;letter-spacing:.02em;white-space:nowrap}
+.v-raise{background:var(--raise);color:#03200f}
+.v-call{background:var(--call);color:#241a02}
+.v-fold{background:var(--fold);color:#2a0705}
+.v-wait{background:var(--surface2);color:var(--muted);font-size:16px}
+.vhow{font-weight:600;font-size:15px}
+.why{color:var(--muted);font-size:14px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;border-top:1px solid var(--line);padding-top:10px}
+.stat .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+.stat .v{font-family:var(--f-display);font-weight:600;font-size:20px;font-variant-numeric:tabular-nums;margin-top:2px}
+.stat .d{font-size:12.5px;color:var(--muted)}
+.meter{display:flex;gap:3px;margin-top:6px}
+.meter i{flex:1;height:6px;border-radius:2px;background:var(--line)}
+.meter i.f{background:var(--chip)}
+.combo{font-weight:600}
+.note{font-size:13px;background:var(--surface2);border-radius:8px;padding:8px 10px}
+/* picker */
+.picker{position:sticky;bottom:0;background:var(--bg);border-top:1px solid var(--line);margin-top:4px}
+.picker .in{max-width:520px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:10px calc(10px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:6px}
+.ptitle{font-size:12px;color:var(--muted);text-align:center}
+.ranks{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.ranks button{height:44px;border-radius:9px;background:var(--surface2);border:1px solid var(--line);font-family:var(--f-display);font-weight:600;font-size:17px;line-height:1;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ranks button small{font-family:var(--f-body);font-size:9px;font-weight:500;color:var(--muted);margin-top:2px}
+.ranks button.on{background:var(--chip);color:#1b1404;border-color:var(--chip)}
+.ranks button.on small{color:#4a3a10}
+.ranks button.del{font-size:14px;font-family:var(--f-body)}
+.suits{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.suits button{height:50px;border-radius:10px;background:var(--card);font-size:28px;line-height:1;color:var(--card-black)}
+.suits button.red{color:var(--card-red)}
+.suits button.on{box-shadow:0 0 0 3px var(--chip)}
+button:disabled{opacity:.28;cursor:default}
+footer{font-size:12px;color:var(--muted);text-align:center;padding-bottom:4px}
+@media (prefers-reduced-motion:no-preference){.vbadge{transition:background .15s}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Покер<span>·</span>подсказка</h1>
+    <button class="reset" id="reset">Новая раздача</button>
+  </header>
+
+  <section>
+    <div class="label"><span>Моя позиция</span></div>
+    <div class="seg c4" id="pos">
+      <button data-v="early">Ранняя<small>хожу первым</small></button>
+      <button data-v="mid">Средняя<small>в середине</small></button>
+      <button data-v="late">Поздняя<small>хожу последним</small></button>
+      <button data-v="blinds">Блайнды<small>уже поставил</small></button>
+    </div>
+    <div class="hint" id="posHint"></div>
+  </section>
+
+  <section id="sitBox">
+    <div class="label"><span>Что было до меня</span></div>
+    <div class="seg c3" id="sit">
+      <button data-v="fold">Все пас</button>
+      <button data-v="limp">Кто-то уравнял</button>
+      <button data-v="raise">Кто-то повысил</button>
+    </div>
+  </section>
+
+  <section class="table">
+    <div class="grp">
+      <div class="label"><span>Мои карты</span></div>
+      <div class="slots" id="heroSlots"></div>
+    </div>
+    <div class="grp">
+      <div class="label"><span>Стол</span></div>
+      <div class="slots" id="boardSlots"></div>
+    </div>
+  </section>
+
+  <section class="res" id="res" aria-live="polite"></section>
+
+  <section class="row">
+    <div>
+      <div class="label" style="margin:0"><span>Соперников в раздаче</span></div>
+      <div class="hint" style="margin:2px 0 0">сколько ещё не сбросили карты</div>
+    </div>
+    <div class="stepper">
+      <button id="oppMinus" aria-label="Меньше соперников">−</button>
+      <output id="opp">2</output>
+      <button id="oppPlus" aria-label="Больше соперников">+</button>
+    </div>
+  </section>
+
+  <footer>Упрощённая стратегия для домашнего турнира. Подсказка, а не гарантия.</footer>
+</div>
+
+<div class="picker">
+  <div class="in">
+    <div class="ptitle" id="ptitle">Карта 1 из 2: выбери достоинство и масть</div>
+    <div class="ranks" id="ranks"></div>
+    <div class="suits" id="suits"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+const LBL=['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+const RU={12:'туз',11:'король',10:'дама',9:'валет'};
+const RU_PL=['двоек','троек','четвёрок','пятёрок','шестёрок','семёрок','восьмёрок','девяток','десяток','валетов','дам','королей','тузов'];
+const SUIT=['♠','♥','♦','♣'];
+const RED=[false,true,true,false];
+const POS_HINT={
+  early:'После тебя ходят ещё 6–8 человек. Играй только сильные карты.',
+  mid:'Часть стола уже сходила, но за тобой ещё сильные игроки.',
+  late:'Ты на кнопке или прямо перед ней: видишь ходы почти всех. Можно играть шире.',
+  blinds:'Фишки поставлены вслепую. После флопа будешь ходить первым — это минус.'
+};
+const POS_RU={early:'ранней',mid:'средней',late:'поздней',blinds:'блайндах'};
+
+let S={slots:[null,null,null,null,null,null,null],active:0,pr:null,ps:null,pos:null,sit:'fold',opp:2};
+try{const p=localStorage.getItem('pk_pos');if(p)S.pos=p;const o=+localStorage.getItem('pk_opp');if(o>=1&&o<=8)S.opp=o;}catch(e){}
+
+const $=id=>document.getElementById(id);
+
+/* ---------- hand evaluator ---------- */
+function sh(m){for(let h=12;h>=4;h--){if(((m>>(h-4))&31)===31)return h;}if((m&15)===15&&(m&4096))return 3;return -1;}
+function P(cat,a){let v=cat;for(let i=0;i<5;i++)v=v*16+(a[i]||0);return v;}
+const CATB=1048576;
+function ev(cs){
+  const cnt=new Array(13).fill(0),sm=[0,0,0,0],sc=[0,0,0,0];let m=0;
+  for(const c of cs){const r=c>>2,s=c&3;cnt[r]++;sm[s]|=1<<r;sc[s]++;m|=1<<r;}
+  let fs=-1;for(let s=0;s<4;s++)if(sc[s]>=5)fs=s;
+  if(fs>=0){const h=sh(sm[fs]);if(h>=0)return P(8,[h]);}
+  let q=-1;const tr=[],pr=[];
+  for(let r=12;r>=0;r--){if(cnt[r]===4)q=r;else if(cnt[r]===3)tr.push(r);else if(cnt[r]===2)pr.push(r);}
+  const hi=(ex,n)=>{const o=[];for(let r=12;r>=0&&o.length<n;r--)if(cnt[r]>0&&!ex.includes(r))o.push(r);return o;};
+  if(q>=0)return P(7,[q,...hi([q],1)]);
+  if(tr.length&&(tr.length>1||pr.length)){const p=Math.max(tr[1]??-1,pr[0]??-1);return P(6,[tr[0],p]);}
+  if(fs>=0){const o=[];for(let r=12;r>=0&&o.length<5;r--)if(sm[fs]>>r&1)o.push(r);return P(5,o);}
+  const st=sh(m);if(st>=0)return P(4,[st]);
+  if(tr.length)return P(3,[tr[0],...hi([tr[0]],2)]);
+  if(pr.length>=2)return P(2,[pr[0],pr[1],...hi([pr[0],pr[1]],1)]);
+  if(pr.length)return P(1,[pr[0],...hi([pr[0]],3)]);
+  return P(0,hi([],5));
+}
+function comboName(v){
+  const cat=Math.floor(v/CATB);const a=[];let x=v%CATB;for(let i=0;i<5;i++){a.unshift(x%16);x=Math.floor(x/16);}
+  switch(cat){
+    case 8:return a[0]===12?'Роял-флеш':'Стрит-флеш';
+    case 7:return 'Каре '+RU_PL[a[0]];
+    case 6:return 'Фулл-хаус';
+    case 5:return 'Флеш';
+    case 4:return 'Стрит';
+    case 3:return 'Тройка '+RU_PL[a[0]];
+    case 2:return 'Две пары: '+RU_PL[a[0]]+' и '+RU_PL[a[1]];
+    case 1:return 'Пара '+RU_PL[a[0]];
+    default:return 'Старшая карта: '+(RU[a[0]]||LBL[a[0]]);
+  }
+}
+function equity(hero,board,n,iters){
+  const used=new Set([...hero,...board]);const deck=[];for(let c=0;c<52;c++)if(!used.has(c))deck.push(c);
+  const need=5-board.length;let win=0;
+  for(let it=0;it<iters;it++){
+    const k=need+2*n;
+    for(let i=0;i<k;i++){const j=i+Math.floor(Math.random()*(deck.length-i));const t=deck[i];deck[i]=deck[j];deck[j]=t;}
+    const fb=board.concat(deck.slice(0,need));
+    const hs=ev(hero.concat(fb));let lose=false,eq=0;
+    for(let p=0;p<n;p++){const o=ev([deck[need+2*p],deck[need+2*p+1]].concat(fb));if(o>hs){lose=true;break;}if(o===hs)eq++;}
+    if(!lose)win+=1/(1+eq);
+  }
+  return win/iters;
+}
+
+/* ---------- preflop ---------- */
+function chen(r1,r2,s){
+  const hi=Math.max(r1,r2),lo=Math.min(r1,r2);
+  const v=r=>r===12?10:r===11?8:r===10?7:r===9?6:(r+2)/2;
+  if(hi===lo)return Math.max(5,Math.ceil(v(hi)*2));
+  let x=v(hi);if(s)x+=2;const g=hi-lo-1;
+  x-=g===0?0:g===1?1:g===2?2:g===3?4:5;
+  if(g<=1&&hi<10)x+=1;
+  return Math.ceil(x);
+}
+const ALL=[];for(let h=0;h<13;h++)for(let l=0;l<=h;l++){if(h===l)ALL.push([chen(h,l,0),6]);else{ALL.push([chen(h,l,1),4]);ALL.push([chen(h,l,0),12]);}}
+function pctOf(ch){let n=0;for(const [c,k] of ALL)if(c>=ch)n+=k;return n/1326;}
+function strength(p){const t=[.03,.06,.10,.15,.22,.30,.40,.55,.75];for(let i=0;i<t.length;i++)if(p<=t[i])return 10-i;return 1;}
+
+function preflopAdvice(ch,pair,suited,pos,sit){
+  const P=pos;
+  if(sit==='fold'){
+    const thr={early:9,mid:8,late:6,blinds:8}[P];
+    if(ch>=thr)return{a:'raise',t:'РЕЙЗ',how:'Повышай до 2,5–3 больших блайндов.',why:ch>=12?'Сильная рука. Хочешь, чтобы слабые сбросили, а сильные заплатили.':'Руки хватает для '+POS_RU[P]+' позиции. Ставкой забираешь инициативу.'};
+    if(P==='blinds'&&ch>=6)return{a:'call',t:'КОЛЛ / ЧЕК',how:'Доплати до большого блайнда или чекни, если ты на нём.',why:'Рука средняя: дёшево смотришь флоп, но без рейза.'};
+    return{a:'fold',t:'ПАС',how:P==='blinds'?'Если ты на большом блайнде и никто не повышал — чек бесплатно.':'Сбрасывай, не вкладывай фишки.',why:P==='early'?'Из ранней позиции нужны только сильные карты.':'Слабая рука для этой позиции.'};
+  }
+  if(sit==='limp'){
+    const thr={early:9,mid:8,late:7,blinds:8}[P];
+    if(ch>=thr)return{a:'raise',t:'РЕЙЗ',how:'Повышай до 4 больших блайндов + 1 за каждого уравнявшего.',why:'Уравнявшие показали, что у них нет сильной карты. Наказывай.'};
+    if(P!=='early'&&(pair||(suited&&ch>=6)))return{a:'call',t:'КОЛЛ',how:P==='blinds'?'Уравняй (на большом блайнде — чек).':'Просто уравняй большой блайнд.',why:pair?'Дёшево ловишь тройку на флопе. Нет тройки — сдавайся на ставку.':'Одномастные: дёшево ловишь флеш или стрит.'};
+    return{a:'fold',t:'ПАС',how:P==='blinds'?'На большом блайнде — чек бесплатно, иначе пас.':'Сбрасывай.',why:'Рука не стоит фишек.'};
+  }
+  const latepos=(P==='late'||P==='blinds');
+  if(ch>=12)return{a:'raise',t:'3-БЕТ',how:'Повышай в 3 раза от их ставки.'+(ch>=14?' Олл-ин не бойся.':''),why:'Одна из лучших рук. Не давай смотреть флоп дёшево.'};
+  if(ch>=(latepos?9:10))return{a:'call',t:'КОЛЛ',how:'Уравняй и смотри флоп.',why:'Хорошая рука, но против рейза не повышай. Без пары на флопе — осторожно.'};
+  if(pair&&P!=='early')return{a:'call',t:'КОЛЛ?',how:'Только если рейз маленький (до 3 больших блайндов). Иначе пас.',why:'Ловишь тройку (шанс ~12%). Не пришла — сбрасывай на ставку.'};
+  return{a:'fold',t:'ПАС',how:'Сбрасывай.',why:'Против повышения эта рука чаще проигрывает.'};
+}
+
+/* ---------- postflop ---------- */
+function postAdvice(e){
+  let maxCall;
+  if(e>=0.5)maxCall='любой ставке';else{const b=e/(1-2*e);maxCall=b<0.05?'почти любой ставке не выгоден':'ставке до '+Math.round(b*100)+'% банка';}
+  const callLine=e>=0.5?'Колл выгоден при любой ставке.':(maxCall.includes('не выгоден')?'Колл почти никогда не выгоден.':'Колл выгоден при '+maxCall+'.');
+  if(e>=0.65)return{a:'raise',t:'СТАВЬ',how:'Ставь 2/3 банка. Если ставят в тебя — повышай.',why:callLine};
+  if(e>=0.45)return{a:'raise',t:'СТАВЬ',how:'Ставь половину банка. На повышение — просто колл.',why:callLine};
+  if(e>=0.25)return{a:'call',t:'ЧЕК / КОЛЛ',how:'Сам не ставь. На ставку — колл, если она небольшая.',why:callLine};
+  return{a:'fold',t:'ЧЕК / ПАС',how:'Чек бесплатно. На ставку — пас.',why:callLine};
+}
+function countOuts(hero,board){
+  const cur=ev(hero.concat(board)),curCat=Math.floor(cur/CATB);if(curCat>=4)return 0;
+  const used=new Set([...hero,...board]);let n=0;
+  for(let c=0;c<52;c++){if(used.has(c))continue;const v=ev(hero.concat(board,[c]));const cat=Math.floor(v/CATB);
+    if(cat>=4&&Math.floor(ev(board.concat([c]))/CATB)<4)n++;}
+  return n;
+}
+
+/* ---------- UI ---------- */
+function cardHTML(c){return c==null?'':`${LBL[c>>2]}<span class="s">${SUIT[c&3]}</span>`;}
+function renderSlots(){
+  const h=$('heroSlots'),b=$('boardSlots');h.innerHTML='';b.innerHTML='';
+  S.slots.forEach((c,i)=>{
+    const el=document.createElement('button');
+    el.className='slot '+(i<2?'hero':'board')+(c!=null?' full'+(RED[c&3]?' red':''):'')+(i===S.active?' act':'');
+    el.innerHTML=cardHTML(c);
+    el.setAttribute('aria-label',c==null?'Пустая карта':'Карта '+LBL[c>>2]+SUIT[c&3]+', нажми чтобы убрать');
+    el.onclick=()=>{S.slots[i]=null;S.active=i;S.pr=null;S.ps=null;update();};
+    (i<2?h:b).appendChild(el);
+  });
+}
+function renderPicker(){
+  const used=new Set(S.slots.filter(c=>c!=null));
+  const r=$('ranks');r.innerHTML='';
+  for(let k=12;k>=0;k--){
+    const bt=document.createElement('button');
+    bt.innerHTML=LBL[k]+(RU[k]?`<small>${RU[k]}</small>`:'');
+    bt.className=S.pr===k?'on':'';
+    let free=0;for(let s=0;s<4;s++)if(!used.has(k*4+s)&&(S.ps==null||S.ps===s))free++;
+    bt.disabled=free===0||S.active<0;
+    bt.onclick=()=>{S.pr=S.pr===k?null:k;tryCommit();};
+    r.appendChild(bt);
+  }
+  const d=document.createElement('button');d.className='del';d.textContent='⌫';d.setAttribute('aria-label','Убрать последнюю карту');
+  d.onclick=()=>{let i=-1;for(let j=6;j>=0;j--)if(S.slots[j]!=null){i=j;break;}if(i>=0){S.slots[i]=null;S.active=i;}S.pr=null;S.ps=null;update();};
+  r.appendChild(d);
+  const su=$('suits');su.innerHTML='';
+  for(let s=0;s<4;s++){
+    const bt=document.createElement('button');bt.textContent=SUIT[s];
+    bt.className=(RED[s]?'red':'')+(S.ps===s?' on':'');
+    bt.disabled=S.active<0||(S.pr!=null&&used.has(S.pr*4+s));
+    bt.onclick=()=>{S.ps=S.ps===s?null:s;tryCommit();};
+    su.appendChild(bt);
+  }
+  const names=['Моя карта 1','Моя карта 2','Флоп 1','Флоп 2','Флоп 3','Тёрн','Ривер'];
+  $('ptitle').textContent=S.active<0?'Все карты выбраны. Нажми на карту, чтобы заменить.':names[S.active]+': выбери достоинство и масть';
+}
+function tryCommit(){
+  if(S.pr!=null&&S.ps!=null&&S.active>=0){
+    const c=S.pr*4+S.ps;if(!S.slots.includes(c)){S.slots[S.active]=c;}
+    S.pr=null;S.ps=null;
+    let nx=-1;
+    if(S.active<2){for(let j=0;j<2;j++)if(S.slots[j]==null){nx=j;break;}}
+    if(nx<0){for(let j=2;j<7;j++)if(S.slots[j]==null){nx=j;break;}}
+    S.active=nx;
+  }
+  update();
+}
+function seg(id,key){
+  document.querySelectorAll('#'+id+' button').forEach(b=>{
+    b.classList.toggle('on',b.dataset.v===S[key]);
+    b.onclick=()=>{S[key]=b.dataset.v;if(key==='pos'){try{localStorage.setItem('pk_pos',S.pos)}catch(e){}}update();};
+  });
+}
+
+let token=0;
+function renderResult(){
+  const res=$('res');const hero=S.slots.slice(0,2);const board=S.slots.slice(2).filter(c=>c!=null);
+  $('posHint').textContent=S.pos?POS_HINT[S.pos]:'Выбери, где ты сидишь в этой раздаче.';
+  $('sitBox').hidden=board.length>0;
+  if(hero.some(c=>c==null)){
+    res.innerHTML=`<div class="verdict"><span class="vbadge v-wait">Жду карты</span><div class="why">Выбери 2 свои карты внизу. Сначала позицию — сверху.</div></div>`;return;
+  }
+  const [a,b]=hero;const r1=a>>2,r2=b>>2,suited=(a&3)===(b&3),pair=r1===r2;
+  const ch=chen(r1,r2,suited);const pct=pctOf(ch);const str=strength(pct);
+  const hi=Math.max(r1,r2),lo=Math.min(r1,r2);
+  const handTxt=pair?'Пара '+RU_PL[hi]:(RU[hi]||LBL[hi])+' + '+(RU[lo]||LBL[lo])+(suited?', одной масти':', разные масти');
+  let adv,extra='';
+  if(board.length===0){
+    adv=S.pos?preflopAdvice(ch,pair,suited,S.pos,S.sit):{a:'wait',t:'Позиция?',how:'Выбери позицию сверху — от неё зависит совет.',why:''};
+  }else if(board.length<3){
+    adv={a:'wait',t:'Флоп?',how:'Добавь все 3 карты флопа.',why:''};
+  }
+  const meter=Array.from({length:10},(_,i)=>`<i class="${i<str?'f':''}"></i>`).join('');
+  const strBlock=`<div class="stat"><div class="k">Сила руки до флопа</div><div class="v">${str}/10</div><div class="meter">${meter}</div><div class="d">лучшие ${pct<0.01?'<1':Math.round(pct*100)}% стартовых рук</div></div>`;
+  const eqBlock=`<div class="stat"><div class="k">Шанс выиграть</div><div class="v" id="eqv">…</div><div class="d">против ${S.opp} ${S.opp===1?'соперника':'соперников'}</div></div>`;
+  let comboLine='';
+  if(board.length>=3){
+    const v=ev(hero.concat(board));comboLine=`<div class="combo">У тебя: ${comboName(v)}</div>`;
+    if(board.length===5&&ev(board)>=v)extra+=`<div class="note">Эта комбинация целиком лежит на столе — она есть у всех. Это не сила.</div>`;
+    if(board.length<5){const o=countOuts(hero,board);if(o>=4)extra+=`<div class="note">Дро: ${o} карт${o%10===1&&o!==11?'а':''} в колоде дадут тебе стрит или флеш (~${Math.round(o*(board.length===3?4:2))}% ${board.length===3?'до ривера':'на ривере'}).</div>`;}
+  }
+  const draw=(ad)=>`<div class="verdict"><span class="vbadge v-${ad.a}">${ad.t}</span><div class="vhow">${ad.how}</div></div>${ad.why?`<div class="why">${ad.why}</div>`:''}`;
+  res.innerHTML=`<div id="vbox">${adv?draw(adv):'<div class="verdict"><span class="vbadge v-wait">Считаю…</span></div>'}</div>${comboLine}${extra}<div class="why" style="font-size:13px">${handTxt}</div><div class="stats">${strBlock}${eqBlock}</div>`;
+  const my=++token;const n=S.opp;const it=n>=5?2500:4000;const bd=board.length>=3?board:[];
+  setTimeout(()=>{if(my!==token)return;const e=equity(hero,bd,n,it);if(my!==token)return;
+    $('eqv').textContent=Math.round(e*100)+'%';
+    if(!adv&&board.length>=3){$('vbox').innerHTML=draw(postAdvice(e));}
+  },15);
+}
+function update(){
+  seg('pos','pos');seg('sit','sit');$('opp').textContent=S.opp;
+  renderSlots();renderPicker();renderResult();
+}
+$('oppMinus').onclick=()=>{S.opp=Math.max(1,S.opp-1);try{localStorage.setItem('pk_opp',S.opp)}catch(e){}update();};
+$('oppPlus').onclick=()=>{S.opp=Math.min(8,S.opp+1);try{localStorage.setItem('pk_opp',S.opp)}catch(e){}update();};
+$('reset').onclick=()=>{S.slots=[null,null,null,null,null,null,null];S.active=0;S.pr=null;S.ps=null;S.sit='fold';update();};
+window.__pk={ev,comboName,equity,chen,pctOf};
+update();
+})();
+</script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(function(){});}</script>
+</body>
+</html>
