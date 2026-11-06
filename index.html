@@ -281,7 +281,7 @@ function preflopAdvice(h,pos,sit,stack){
   }
   if(THREEBET.has(h))return{a:'raise',t:'3-БЕТ',how:'Повышай в 3 раза от их ставки. Если идут олл-ин — уравнивай.',why:'Одна из лучших рук. Не давай смотреть флоп дёшево. '+top};
   if(CALLR[pos].has(h)){
-    if(SMALLPAIR.has(h))return{a:'call',t:'КОЛЛ?',how:'Только если рейз небольшой (до 3 ББ). Иначе пас.',why:'Ловишь тройку (шанс ~12%). Не пришла — сбрасывай на ставку.'};
+    if(SMALLPAIR.has(h))return{a:'call',t:'КОЛЛ?',how:'Только если рейз до 3 ББ и у тебя и у рейзера больше 45 ББ. Иначе пас.',why:'Ловишь тройку (шанс ~12%). Не пришла — сбрасывай на ставку.'};
     return{a:'call',t:'КОЛЛ',how:'Уравняй и смотри флоп.',why:'Хорошая рука, но против рейза не повышай. Без пары на флопе — осторожно.'};
   }
   return FOLD('Против повышения эта рука чаще проигрывает.');
@@ -308,19 +308,20 @@ function equity(hero,board,n,iters,range){
   return win/iters;
 }
 function oppRange(boardLen,sit){
-  if(boardLen===0)return sit==='raise'?0.15:sit==='limp'?0.45:0.35;
-  return sit==='raise'?0.30:0.55;
+  if(boardLen===0)return sit==='raise'?0.15:sit==='limp'?0.45:0.30;
+  return sit==='raise'?0.20:sit==='fold'?0.30:0.45;
 }
 
 /* ---------- postflop ---------- */
-function postAdvice(e,n,wet){
-  const rel=e*(n+1);
+function postAdvice(e,n,wet,heroCat,boardCat){
+  const rel=e*(n+1);const made=heroCat>=3||(heroCat===2&&boardCat===0);
   let callLine;
   if(e>=0.5)callLine='Колл выгоден при любой ставке.';
   else{const b=e/(1-2*e);callLine=b<0.08?'Колл почти никогда не выгоден.':'Колл выгоден, если ставка не больше '+Math.round(b*100)+'% банка.';}
   const big=wet?'3/4 банка (стол опасный — не давай дёшево добирать)':'2/3 банка';
-  if(e>=0.6||rel>=2.2)return{a:'raise',t:'СТАВЬ',how:'Ставь '+big+'. Если ставят в тебя — повышай.',why:callLine};
-  if(e>=0.45||rel>=1.5)return{a:'raise',t:'СТАВЬ',how:'Ставь половину банка. На повышение — просто колл.',why:callLine};
+  if(made&&e>=0.35)return{a:'raise',t:'СТАВЬ',how:'Ставь '+big+'. Если ставят в тебя — повышай.',why:callLine};
+  if(e>=0.6)return{a:'raise',t:'СТАВЬ',how:'Ставь '+big+'. Если ставят в тебя — просто колл, не повышай.',why:callLine};
+  if(e>=0.45)return{a:'raise',t:'СТАВЬ',how:'Ставь половину банка. На повышение — просто колл.',why:callLine};
   if(e>=0.25||rel>=1.0)return{a:'call',t:'ЧЕК / КОЛЛ',how:'Сам не ставь. На ставку — колл, если она небольшая.',why:callLine};
   return{a:'fold',t:'ЧЕК / ПАС',how:'Чек бесплатно. На ставку — пас.',why:callLine};
 }
@@ -328,13 +329,13 @@ function countOuts(hero,board){
   const curCat=catOf(ev(hero.concat(board)));if(curCat>=4)return 0;
   const used=new Set([...hero,...board]);let n=0;
   for(let c=0;c<52;c++){if(used.has(c))continue;const cat=catOf(ev(hero.concat(board,[c])));
-    if(cat>=4&&catOf(ev(board.concat([c])))<4)n++;}
+    if((cat===4||cat===5||cat===8)&&catOf(ev(board.concat([c])))<4)n++;}
   return n;
 }
 function pairInfo(hero,board,v){
   const p=parts(v)[0];const br=board.map(c=>c>>2).sort((x,y)=>y-x);const hr=hero.map(c=>c>>2);
   const uniq=[...new Set(br)];
-  if(hr[0]===hr[1]&&hr[0]===p)return p>br[0]?'оверпара (выше всех карт стола)':'карманная пара ниже карт стола';
+  if(hr[0]===hr[1]&&hr[0]===p)return p>br[0]?'оверпара (выше всех карт стола)':p<br[br.length-1]?'карманная пара ниже всех карт стола':'карманная пара ниже старшей карты стола';
   if(!hr.includes(p))return 'пара лежит на столе — она общая';
   const kick=hr[0]===p?hr[1]:hr[0];
   const kTxt=kick>=10?', сильный кикер':kick<=6?', слабый кикер':'';
@@ -352,7 +353,7 @@ function boardWarnings(board,heroCat){
   for(let lo=-1;lo<=8;lo++){let k=0;for(let r=lo;r<lo+5;r++)if(r===-1?(m>>12)&1:(m>>r)&1)k++;if(k>=3){st=true;break;}}
   if(st&&heroCat<4)w.push('Карты стола идут подряд — у соперника может быть стрит.');
   if(cnt.some(x=>x>=2)&&heroCat<6&&heroCat>=3)w.push('На столе пара — возможен фулл-хаус.');
-  return {list:w.slice(0,2),wet:maxS>=3||st};
+  return {list:w.slice(0,2),wet:board.length<5&&(maxS>=2||st)};
 }
 
 /* ---------- UI ---------- */
@@ -401,6 +402,7 @@ function tryCommit(){
     let nx=-1;
     if(S.active<2){for(let j=0;j<2;j++)if(S.slots[j]==null){nx=j;break;}}
     if(nx<0){for(let j=2;j<7;j++)if(S.slots[j]==null){nx=j;break;}}
+    if(nx<0)nx=S.slots.findIndex(x=>x==null);
     S.active=nx;
   }
   update();
@@ -414,6 +416,7 @@ function seg(id,key){
 
 let token=0;
 function renderResult(){
+  token++;
   const res=$('res');const hero=S.slots.slice(0,2);const board=S.slots.slice(2).filter(c=>c!=null);
   $('posHint').textContent=S.pos?POS_HINT[S.pos]:'Выбери, где ты сидишь в этой раздаче.';
   $('sitBox').hidden=board.length>0;$('stackBox').hidden=board.length>0;
@@ -437,7 +440,7 @@ function renderResult(){
     const v=ev(hero.concat(board));const cat=catOf(v);
     comboLine=`<div class="combo">У тебя: ${comboName(v)}${cat===1?' — '+pairInfo(hero,board,v):''}</div>`;
     if(board.length===5&&ev(board)>=v)extra+=`<div class="note">Эта комбинация целиком лежит на столе — она есть у всех. Это не сила.</div>`;
-    if(board.length<5){const o=countOuts(hero,board);if(o>=4)extra+=`<div class="note">Дро: ${o} карт в колоде дадут тебе стрит или флеш (~${Math.min(o*(board.length===3?4:2),70)}% ${board.length===3?'до ривера':'на ривере'}).</div>`;}
+    if(board.length<5){const o=countOuts(hero,board);if(o>=4){const one=Math.round(o/(board.length===3?47:46)*100);const two=Math.round((1-(47-o)*(46-o)/(47*46))*100);extra+=`<div class="note">Дро: ${o} карт в колоде дадут тебе стрит или флеш (~${one}% на следующей карте${board.length===3?', ~'+two+'% до ривера':''}).</div>`;}}
     const bw=boardWarnings(board,cat);wet=bw.wet;
     for(const t of bw.list)extra+=`<div class="note">⚠ ${t}</div>`;
   }
@@ -447,7 +450,7 @@ function renderResult(){
   const it=n>=5?2500:4000;
   setTimeout(()=>{if(my!==token)return;const e=equity(hero,bd,n,it,range);if(my!==token)return;
     $('eqv').textContent=Math.round(e*100)+'%';
-    if(!adv&&board.length>=3){$('vbox').innerHTML=draw(postAdvice(e,n,wet));}
+    if(!adv&&board.length>=3){$('vbox').innerHTML=draw(postAdvice(e,n,wet,catOf(ev(hero.concat(bd))),catOf(ev(bd))));}
   },15);
 }
 function update(){
